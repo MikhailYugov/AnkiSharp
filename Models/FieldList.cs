@@ -6,17 +6,10 @@ namespace AnkiSharp.Models
 {
     public class FieldList : List<Field>
     {
-        private string _format;
-
         #region CTOR
 
         public FieldList()
         {
-        }
-
-        public FieldList(string format)
-        {
-            _format = format;
         }
 
         #endregion
@@ -28,22 +21,22 @@ namespace AnkiSharp.Models
             base.Add(field);
         }
 
-        public string ToJSON()
+        public string ToJson()
         {
-            var json = from field in base.FindAll(x => x != null)
-                       select field.ToJSON();
+            var json = from field in FindAll(x => x != null)
+                       select field.ToJson();
 
             return String.Join(",\n", json.ToArray());
         }
 
         public string ToFrontBack()
         {
-            return String.Join("\\n<hr id=answer />\\n", (object[])ToArray());
+            return String.Join("\n<hr id=answer />\n", (object[])ToArray());
         }
 
         public override string ToString()
         {
-            return String.Join("\\n<br>\\n", (object[])ToArray());
+            return String.Join("\n<br>\n", (object[])ToArray());
         }
 
         public string Format(string format)

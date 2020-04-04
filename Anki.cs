@@ -40,10 +40,12 @@ namespace AnkiSharp
         #endregion
         
         #region CTOR
+
         /// <summary>
         /// Creates a Anki object
         /// </summary>
         /// <param name="name">Specify the name of apkg file and deck</param>
+        /// <param name="info"></param>
         /// <param name="path">Where to save your apkg file</param>
         public Anki(string name, MediaInfo info = null, string path = null)
         {
@@ -54,10 +56,7 @@ namespace AnkiSharp
 
             _mediaInfo = info;
 
-            if (path == null)
-                _path = Path.Combine(Path.GetDirectoryName(_assembly.Location), "tmp");
-            else
-                _path = path;
+            _path = path ?? Path.Combine(Path.GetDirectoryName(_assembly.Location) ?? throw new InvalidOperationException(), "tmp");
 
             if (Directory.Exists(_path) == false)
                 Directory.CreateDirectory(_path);
@@ -70,13 +69,14 @@ namespace AnkiSharp
         /// </summary>
         /// <param name="name">Specify the name of apkg file and deck</param>
         /// <param name="file">Apkg file</param>
+        /// <param name="info"></param>
         public Anki(string name, ApkgFile file, MediaInfo info = null)
         {
             _cardsMetadatas = new Queue<CardMetadata>();
             _revLogMetadatas = new List<RevLogMetadata>();
 
             _assembly = Assembly.GetExecutingAssembly();
-            _path = Path.Combine(Path.GetDirectoryName(_assembly.Location), "tmp");
+            _path = Path.Combine(Path.GetDirectoryName(_assembly.Location) ?? throw new InvalidOperationException(), "tmp");
 
             _mediaInfo = info;
 
@@ -106,7 +106,8 @@ namespace AnkiSharp
                 fields.Add(new Field(value));
             }
 
-            var currentDefault = _infoPerMid["DEFAULT"] as Info;
+            var currentDefault = (Info) _infoPerMid["DEFAULT"];
+            if (currentDefault == null) return;
             var newDefault = new Info(currentDefault.Item1, currentDefault.Item2, fields);
 
             _infoPerMid["DEFAULT"] = newDefault;
@@ -139,7 +140,7 @@ namespace AnkiSharp
 
             CreateMediaFile();
 
-            ExecuteSQLiteCommands();
+            ExecuteSqLiteCommands();
 
             CreateZipFile(path);
         }
@@ -154,11 +155,9 @@ namespace AnkiSharp
 
             while (myEnumerator.MoveNext())
             {
-                if (IsRightFieldList((myEnumerator.Value as Info).Item3, properties))
-                {
-                    mid = myEnumerator.Key.ToString();
-                    break;
-                }   
+                if (!IsRightFieldList(((Info) myEnumerator.Value).Item3, properties)) continue;
+                if (myEnumerator.Key != null) mid = myEnumerator.Key.ToString();
+                break;
             }
 
             if (mid == "" || (_infoPerMid.Contains(mid) && properties.Length != (_infoPerMid[mid] as Info).Item3.Count))
@@ -185,7 +184,7 @@ namespace AnkiSharp
 
             if (_infoPerMid.Contains(item.Mid) && item.Count != (_infoPerMid[item.Mid] as Info).Item3.Count)
                 throw new ArgumentException("Number of fields provided is not the same as the one expected");
-            else if (ContainsItem(item) == true)
+            if (ContainsItem(item) == true)
                 return;
 
             _ankiItems.Add(item);
@@ -196,15 +195,9 @@ namespace AnkiSharp
         /// </summary>
         public bool ContainsItem(AnkiItem item)
         {
-            int matching = 1;
-            
-            foreach (var ankiItem in _ankiItems)
-            {
-                if (item == ankiItem)
-                    ++matching;
-            }
+            int matching = 1 + _ankiItems.Count(ankiItem => item == ankiItem);
 
-            return matching == item.Count ? true : false;
+            return matching == item.Count;
         }
 
         /// <summary>
@@ -212,13 +205,7 @@ namespace AnkiSharp
         /// </summary>
         public bool ContainsItem(Func<AnkiItem, bool> comparison)
         {
-            foreach (var ankiItem in _ankiItems)
-            {
-                if (comparison(ankiItem))
-                    return true;
-            }
-            
-            return false;
+            return _ankiItems.Any(ankiItem => comparison(ankiItem));
         }
 
         public AnkiItem CreateAnkiItem(params string[] properties)
@@ -228,11 +215,9 @@ namespace AnkiSharp
 
             while (myEnumerator.MoveNext())
             {
-                if (IsRightFieldList((myEnumerator.Value as Info).Item3, properties))
-                {
-                    list = (myEnumerator.Value as Info).Item3;
-                    break;
-                }
+                if (!IsRightFieldList((myEnumerator.Value as Info).Item3, properties)) continue;
+                list = (myEnumerator.Value as Info).Item3;
+                break;
             }
             
             return new AnkiItem(list, properties);
@@ -271,18 +256,18 @@ namespace AnkiSharp
             _infoPerMid.Add("DEFAULT", new Info("", css, fields));
         }
 
-        private bool IsRightFieldList(FieldList list, string[] properties)
+        private static bool IsRightFieldList(FieldList list, string[] properties)
         {
-            if (list.Count != properties.Length)
-                return false;
-
-            return true;
+            return list.Count == properties.Length;
         }
 
         private void CreateZipFile(string path)
         {
             string anki2FilePath = Path.Combine(_path, "collection.anki2");
             string mediaFilePath = Path.Combine(_path, "media");
+
+            if (File.Exists(anki2FilePath) == true)
+                File.Delete(anki2FilePath);
 
             File.Move(_collectionFilePath, anki2FilePath);
             string zipPath = Path.Combine(path, _name + ".apkg");
@@ -311,12 +296,12 @@ namespace AnkiSharp
         {
             Collection collection = new Collection(_infoPerMid, _ankiItems, _name);
 
-            SQLiteHelper.ExecuteSQLiteCommand(_conn, collection.Query);
+            SQLiteHelper.ExecuteSQLiteCommand(_conn, collection.SqlQuery, collection.SqlParameters);
 
             return collection.DeckId;
         }
 
-        private void CreateNotesAndCards(string id_deck, Anki anki = null)
+        private void CreateNotesAndCards(string deckId, Anki anki = null)
         {
             Anki currentAnki = anki ?? (this);
 
@@ -324,30 +309,38 @@ namespace AnkiSharp
             {
                 Note note = new Note(currentAnki._infoPerMid, currentAnki._mediaInfo, ankiItem);
 
-                SQLiteHelper.ExecuteSQLiteCommand(currentAnki._conn, note.Query);
+                SQLiteHelper.ExecuteSQLiteCommand(currentAnki._conn, note.SqlQuery, note.SqlParameters);
 
-                Card card = new Card(_cardsMetadatas, note, id_deck);
+                Card card = new Card(_cardsMetadatas, note, deckId);
 
-                SQLiteHelper.ExecuteSQLiteCommand(currentAnki._conn, card.Query);
+                SQLiteHelper.ExecuteSQLiteCommand(currentAnki._conn, card.SqlQuery, card.SqlParameters);
             }
         }
 
         private void AddRevlogMetadata()
         {
-            if (_revLogMetadatas.Count != 0)
+            if (_revLogMetadatas.Count == 0) return;
+
+            foreach (var revlogMetadata in _revLogMetadatas)
             {
-                string insertRevLog = "";
-
-                foreach (var revlogMetadata in _revLogMetadatas)
+                const string sqlQuery = @"INSERT INTO revlog VALUES(@id, @cid, @usn, @ease, @ivl, @lastIvl, @factor, @time, @type)";
+                SQLiteParameter[] sqlParameters =
                 {
-                    insertRevLog = "INSERT INTO revlog VALUES(" + revlogMetadata.id + ", " + revlogMetadata.cid + ", " + revlogMetadata.usn + ", " + revlogMetadata.ease + ", " + revlogMetadata.ivl + ", " + revlogMetadata.lastIvl + ", " + revlogMetadata.factor + ", " + revlogMetadata.time + ", " + revlogMetadata.type + ")";
-
-                    SQLiteHelper.ExecuteSQLiteCommand(_conn, insertRevLog);
-                }
+                    new SQLiteParameter("id", revlogMetadata.Id),
+                    new SQLiteParameter("cid", revlogMetadata.Cid),
+                    new SQLiteParameter("usn", revlogMetadata.Usn),
+                    new SQLiteParameter("ease", revlogMetadata.Ease),
+                    new SQLiteParameter("ivl", revlogMetadata.Ivl),
+                    new SQLiteParameter("lastIvl", revlogMetadata.LastIvl),
+                    new SQLiteParameter("factor", revlogMetadata.Factor),
+                    new SQLiteParameter("time", revlogMetadata.Time),
+                    new SQLiteParameter("type", revlogMetadata.Type),
+                };
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, sqlQuery, sqlParameters);
             }
         }
 
-        private void ExecuteSQLiteCommands(Anki anki = null)
+        private void ExecuteSqLiteCommands(Anki anki = null)
         {
             try
             {
@@ -361,15 +354,16 @@ namespace AnkiSharp
                 var graves = GeneralHelper.ReadResource("AnkiSharp.SqLiteCommands.GravesTable.txt");
                 var indexes = GeneralHelper.ReadResource("AnkiSharp.SqLiteCommands.Indexes.txt");
 
-                SQLiteHelper.ExecuteSQLiteCommand(_conn, column);
-                SQLiteHelper.ExecuteSQLiteCommand(_conn, notes);
-                SQLiteHelper.ExecuteSQLiteCommand(_conn, cards);
-                SQLiteHelper.ExecuteSQLiteCommand(_conn, revLogs);
-                SQLiteHelper.ExecuteSQLiteCommand(_conn, graves);
-                SQLiteHelper.ExecuteSQLiteCommand(_conn, indexes);
+                SQLiteParameter[] parameters = {};
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, column, parameters);
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, notes, parameters);
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, cards, parameters);
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, revLogs, parameters);
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, graves, parameters);
+                SQLiteHelper.ExecuteSQLiteCommand(_conn, indexes, parameters);
 
-                var id_deck = CreateCol();
-                CreateNotesAndCards(id_deck, anki);
+                var deckId = CreateCol();
+                CreateNotesAndCards(deckId, anki);
 
                 AddRevlogMetadata();
             }
@@ -401,14 +395,14 @@ namespace AnkiSharp
                 {
                     foreach (var item in _ankiItems)
                     {
-                        if (_mediaInfo.extension == ".gif" && _mediaInfo.cultureInfo.Name == "zh-CN")
-                            StrokeOrderHelper.DownloadImage(Path.Combine(_path, i.ToString()), item[_mediaInfo.field].ToString());
-                        else if (_mediaInfo.extension == ".wav")
-                            SynthetizerHelper.CreateAudio(Path.Combine(_path, i.ToString()), item[_mediaInfo.field].ToString(), _mediaInfo.cultureInfo, _mediaInfo.audioFormat);
+                        if (_mediaInfo.Extension == ".gif" && _mediaInfo.CultureInfo.Name == "zh-CN")
+                            StrokeOrderHelper.DownloadImage(Path.Combine(_path, i.ToString()), item[_mediaInfo.Field].ToString());
+                        else if (_mediaInfo.Extension == ".wav")
+                            SynthetizerHelper.CreateAudio(Path.Combine(_path, i.ToString()), item[_mediaInfo.Field].ToString(), _mediaInfo.CultureInfo, _mediaInfo.AudioFormat);
 
-                        data += "\"" + i.ToString() + "\": \"" + item[_mediaInfo.field] + _mediaInfo.extension + "\"";
+                        data += "\"" + i + "\": \"" + item[_mediaInfo.Field] + _mediaInfo.Extension + "\"";
 
-                        if (i < _ankiItems.Count() - 1)
+                        if (i < _ankiItems.Count - 1)
                             data += ", ";
 
                         i++;
@@ -442,9 +436,7 @@ namespace AnkiSharp
             {
                 _conn.Open();
 
-                Mapper mapper = Mapper.Instance;
-
-                var cardMetadatas = Mapper.MapSQLiteReader(_conn, "SELECT id, mod, type, queue, due, ivl, factor, reps, lapses, left, odue, odid FROM cards");
+                var cardMetadatas = Mapper.MapSqLiteReader(_conn, "SELECT id, mod, type, queue, due, ivl, factor, reps, lapses, left, odue, odid FROM cards");
 
                 foreach (var cardMetadata in cardMetadatas)
                 {
@@ -453,12 +445,11 @@ namespace AnkiSharp
                 
                 SQLiteDataReader reader = SQLiteHelper.ExecuteSQLiteCommandRead(_conn, "SELECT notes.flds, notes.mid FROM notes");
                 List<double> mids = new List<double>();
-                string[] splitted = null;
                 List<string[]> result = new List<string[]>();
                 
                 while (reader.Read())
                 {
-                    splitted = reader.GetString(0).Split('\x1f');
+                    var splitted = reader.GetString(0).Split('\x1f');
 
                     var currentMid = reader.GetInt64(1);
                     if (mids.Contains(currentMid) == false)
@@ -480,7 +471,7 @@ namespace AnkiSharp
                 
                 reader.Close();
 
-                var revLogMetadatas = Mapper.MapSQLiteReader(_conn, "SELECT * FROM revlog");
+                var revLogMetadatas = Mapper.MapSqLiteReader(_conn, "SELECT * FROM revlog");
 
                 foreach (var revLogMetadata in revLogMetadatas)
                 {
@@ -504,7 +495,7 @@ namespace AnkiSharp
             }
         }
         
-        private void AddFields(JObject models, List<double> mids)
+        private void AddFields(JObject models, IEnumerable<double> mids)
         {
             var regex = new Regex("{{hint:(.*?)}}|{{type:(.*?)}}|{{(.*?)}}");
 

@@ -16,7 +16,7 @@
         #endregion
 
         #region CTOR
-        public Field(string name, string font = "Arial", int size = 12)
+        public Field(string name, string font = "Arial", int size = 20)
         {
             Name = name;
             Font = font;
@@ -30,7 +30,7 @@
             _ord = ord;
         }
 
-        public string ToJSON()
+        public string ToJson()
         {
             return "{\"name\": \"" + Name + "\", \"rtl\": " + Rtl.ToString().ToLower() + ", \"sticky\": " + Sticky.ToString().ToLower() + ", \"media\": " + Media + ", \"ord\": " + _ord + ", \"font\": \"" + Font + "\", \"size\": " + Size + "}";
         }

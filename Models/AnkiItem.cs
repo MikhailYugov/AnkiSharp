@@ -1,28 +1,21 @@
 ﻿using AnkiSharp.Models;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Linq;
 
 namespace AnkiSharp
 {
     public class AnkiItem : DynamicObject
     {
         #region FIELDS
+
         Dictionary<string, object> _dictionary = new Dictionary<string, object>();
         #endregion
 
         #region PROPERTIES
-        public object this[string elem]
-        {
-            get { return _dictionary[elem]; }
-        }
-        
-        public int Count
-        {
-            get
-            {
-                return _dictionary.Count;
-            }
-        }
+        public object this[string elem] => _dictionary[elem];
+
+        public int Count => _dictionary.Count;
 
         public string Mid { get; set; } = "";
         #endregion
@@ -52,7 +45,7 @@ namespace AnkiSharp
             return true;
         }
 
-        public static bool operator==(AnkiItem first, AnkiItem second)
+        public static bool operator ==(AnkiItem first, AnkiItem second)
         {
             foreach (var pair in first._dictionary)
             {
@@ -63,7 +56,7 @@ namespace AnkiSharp
             return true;
         }
 
-        public static bool operator!=(AnkiItem first, AnkiItem second)
+        public static bool operator !=(AnkiItem first, AnkiItem second)
         {
             return !(first == second);
         }

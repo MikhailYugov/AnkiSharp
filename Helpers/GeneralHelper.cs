@@ -20,17 +20,15 @@ namespace AnkiSharp.Helpers
         internal static string ConcatFields(FieldList flds, AnkiItem item, string separator, MediaInfo info)
         {
             var matchedFields = (from t in flds
-                                 where item[t.Name] as string != ""
+                                 //where item[t.Name] as string != ""
                                  select item[t.Name]).ToArray();
 
-            if (info != null)
-            {
-                int indexOfField = Array.IndexOf(matchedFields, item[info.field]);
+            if (info == null) return String.Join(separator, matchedFields);
+            int indexOfField = Array.IndexOf(matchedFields, item[info.Field]);
 
-                if (indexOfField != -1)
-                    matchedFields[indexOfField] += String.Format(extensionTag[info.extension], matchedFields[0] + info.extension);
-            }
-            
+            if (indexOfField != -1)
+                matchedFields[indexOfField] += String.Format(extensionTag[info.Extension], matchedFields[0] + info.Extension);
+
             return String.Join(separator, matchedFields);
         }
         

@@ -2,109 +2,108 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.IO;
+using System.Data.SQLite;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-
+using Newtonsoft.Json;
 using Info = System.Tuple<string, string, AnkiSharp.Models.FieldList>;
 
 namespace AnkiSharp.Models
 {
     internal class Collection
     {
-        long _id = 1;
-        long _crt;
-        string _mod;
-        long _scm;
-        long _ver;
-        long _dty;
-        long _usn;
-        long _lastSync;
-        string _conf;
-        StringBuilder _models;
-        string _decks;
-        string _dconf;
-        string _tags;
+        private const long Id = 1;
 
-        internal string Query { private set; get; }
-        internal string DeckId { private set; get; }
+        internal string SqlQuery { get; }
+        internal SQLiteParameter[] SqlParameters { get; }
+        internal string DeckId { get; }
         
         public Collection(OrderedDictionary infoPerMid, List<AnkiItem> ankiItems, string name)
         {
             var mid = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
 
-            _mod = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
-            _crt = GetDayStart();
+            var mod = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            var crt = GetDayStart();
             
             var confFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.conf.json");
-            _conf = confFileContent.Replace("{MODEL}", mid).Replace("\r\n", "");
+            var conf = confFileContent.Replace("{MODEL}", mid).Replace("\r\n", "");
 
             DeckId = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
 
-            var modelsFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.models.json").Replace("{MOD}", _mod);
+            var modelsFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.models.json").Replace("{MOD}", mod);
 
-            _models = new StringBuilder();
+            var models = new StringBuilder();
 
             var alreadyAdded = new List<string>();
 
             foreach (var key in infoPerMid.Keys.Cast<string>().ToList())
             {
-                var obj = (infoPerMid[key] as Info);
+                var (item1, item2, item3) = ((Info) infoPerMid[key]);
 
-                if (alreadyAdded.Contains(obj.Item3.ToJSON().Replace("hint:", "").Replace("type:", "")))
+                if (alreadyAdded.Contains(item3.ToJson().Replace("hint:", "").Replace("type:", "")))
                     continue;
 
-                if (_models.Length > 0)
-                    _models.Append(", ");
+                if (models.Length > 0)
+                    models.Append(", ");
 
-                if (key.ToString() == "DEFAULT")
+                if (key == "DEFAULT")
                 {
                     var newEntry = infoPerMid["DEFAULT"];
 
                     infoPerMid.Add(mid, newEntry);
                     ankiItems.ForEach(x => x.Mid = x.Mid == "DEFAULT" ? mid : x.Mid);
-                    _models.Append(modelsFileContent.Replace("{MID}", mid));
+                    models.Append(modelsFileContent.Replace("{MID}", mid));
                 }
                 else
-                    _models.Append(modelsFileContent.Replace("{MID}", key as string));
+                    models.Append(modelsFileContent.Replace("{MID}", key));
 
-                _models = _models.Replace("{CSS}", obj.Item2);
-                _models = _models.Replace("{ID_DECK}", DeckId);
+                models = models.Replace("{CSS}", JsonConvert.ToString(item2));
+                models = models.Replace("{ID_DECK}", DeckId);
 
-                var json = obj.Item3.ToJSON();
+                var json = item3.ToJson();
                 
-                _models = _models.Replace("{FLDS}", json.Replace("hint:", "").Replace("type:", ""));
+                models = models.Replace("{FLDS}", json.Replace("hint:", "").Replace("type:", ""));
                 alreadyAdded.Add(json.Replace("hint:", "").Replace("type:", ""));
 
-                var format = obj.Item1 != "" ? obj.Item3.Format(obj.Item1) : obj.Item3.ToFrontBack();
+                var format = item1 != "" ? item3.Format(item1) : item3.ToFrontBack();
 
                 var qfmt = Regex.Split(format, "<hr id=answer(.*?)>")[0];
                 var afmt = format;
 
-                afmt = afmt.Replace(qfmt, "{{FrontSide}}\\n");
-                _models = _models.Replace("{QFMT}", qfmt).Replace("{AFMT}", afmt).Replace("\r\n", "");
+                afmt = afmt.Replace(qfmt, "{{FrontSide}}\n");
+                models = models.Replace("{QFMT}", JsonConvert.ToString(qfmt)).Replace("{AFMT}", JsonConvert.ToString(afmt)).Replace("\r\n", "");
             }
 
             var deckFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.decks.json");
-            _decks = deckFileContent.Replace("{NAME}", name).Replace("{ID_DECK}", DeckId).Replace("{MOD}", _mod).Replace("\r\n", "");
+            var decks = deckFileContent.Replace("{NAME}", name).Replace("{ID_DECK}", DeckId).Replace("{MOD}", mod).Replace("\r\n", "");
 
             var dconfFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.dconf.json");
-            _dconf = dconfFileContent.Replace("\r\n", "");
+            var dconf = dconfFileContent.Replace("\r\n", "");
 
-            Query = @"INSERT INTO col VALUES(" + _id + ", " + _crt + ", " + _mod + ", " + _mod + ", 11, 0, 0, 0, '"
-                    + _conf + "', '{" + _models.ToString() + "}', '" + _decks + "', '" + _dconf + "', "
-                    + "'{}'" + ");";
+            SqlQuery = @"INSERT INTO col VALUES(@id, @crt, @mod1, @mod2, 11, 0, 0, 0, @conf, @models, @decks, @dconf, '{}');";
+            SQLiteParameter[] parameters =
+            {
+                new SQLiteParameter("id", Id),
+                new SQLiteParameter("crt", crt),
+                new SQLiteParameter("mod1", mod),
+                new SQLiteParameter("mod2", mod),
+                new SQLiteParameter("conf", conf),
+                new SQLiteParameter("models", "{" + models + "}"),
+                new SQLiteParameter("decks", decks),
+                new SQLiteParameter("dconf", dconf),
+            };
+            SqlParameters = parameters;
         }
 
         private long GetDayStart()
         {
             var dateOffset = DateTimeOffset.Now;
-            TimeSpan FourHoursSpan = new TimeSpan(4, 0, 0);
-            dateOffset = dateOffset.Subtract(FourHoursSpan);
+            TimeSpan fourHoursSpan = new TimeSpan(4, 0, 0);
+            dateOffset = dateOffset.Subtract(fourHoursSpan);
             dateOffset = new DateTimeOffset(dateOffset.Year, dateOffset.Month, dateOffset.Day,
                                             0, 0, 0, dateOffset.Offset);
-            dateOffset = dateOffset.Add(FourHoursSpan);
+            dateOffset = dateOffset.Add(fourHoursSpan);
             return dateOffset.ToUnixTimeSeconds();
         }
     }

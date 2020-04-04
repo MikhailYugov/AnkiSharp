@@ -19,10 +19,10 @@
   "tmpls": [
     {
       "name": "Forward",
-      "qfmt": "{QFMT}",
+      "qfmt": {QFMT},
       "did": null,
       "bafmt": "",
-      "afmt": "{AFMT}",
+      "afmt": {AFMT},
       "ord": 0,
       "bqfmt": ""
     }
@@ -30,6 +30,6 @@
   "latexPost": "\\end{document}",
   "type": 0,
   "id": {MID},
-  "css": "{CSS}",
+  "css": {CSS},
   "mod": {MOD}
 }

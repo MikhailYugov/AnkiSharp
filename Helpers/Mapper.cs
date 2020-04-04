@@ -7,25 +7,15 @@ namespace AnkiSharp.Helpers
 {
     internal class Mapper
     {
-        private static Mapper instance = null;
+        private static Mapper _instance;
 
         private Mapper()
         {
         }
 
-        public static Mapper Instance
-        {
-            get
-            {
-                if (instance == null)
-                {
-                    instance = new Mapper();
-                }
-                return instance;
-            }
-        }
-        
-        public static List<AnkiSharpDynamic> MapSQLiteReader(SQLiteConnection conn, string toExecute)
+        public static Mapper Instance => _instance ?? (_instance = new Mapper());
+
+        public static List<AnkiSharpDynamic> MapSqLiteReader(SQLiteConnection conn, string toExecute)
         {
             List<AnkiSharpDynamic> result = new List<AnkiSharpDynamic>();
             SQLiteDataReader reader = SQLiteHelper.ExecuteSQLiteCommandRead(conn, toExecute);

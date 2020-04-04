@@ -1,5 +1,4 @@
 ﻿using System.Globalization;
-using System.Media;
 using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
 

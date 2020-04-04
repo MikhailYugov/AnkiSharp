@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Dynamic;
+using System.Linq;
 using System.Reflection;
 
 namespace AnkiSharp.Models
@@ -8,23 +9,19 @@ namespace AnkiSharp.Models
     public class AnkiSharpDynamic : DynamicObject
     {
         #region FIELDS
+
         Dictionary<string, object> _dictionary = new Dictionary<string, object>();
         #endregion
 
         #region PROPERTIES
         public object this[string elem]
         {
-            get { return _dictionary[elem]; }
-            set { _dictionary[elem] = value; }
+            get => _dictionary[elem];
+            set => _dictionary[elem] = value;
         }
 
-        public int Count
-        {
-            get
-            {
-                return _dictionary.Count;
-            }
-        }
+        public int Count => _dictionary.Count;
+
         #endregion
 
         #region CTOR
@@ -48,7 +45,7 @@ namespace AnkiSharp.Models
             return true;
         }
 
-        public static bool operator==(AnkiSharpDynamic first, AnkiSharpDynamic second)
+        public static bool operator ==(AnkiSharpDynamic first, AnkiSharpDynamic second)
         {
             foreach (var pair in first._dictionary)
             {
@@ -59,7 +56,7 @@ namespace AnkiSharp.Models
             return true;
         }
 
-        public static bool operator!=(AnkiSharpDynamic first, AnkiSharpDynamic second)
+        public static bool operator !=(AnkiSharpDynamic first, AnkiSharpDynamic second)
         {
             return !(first == second);
         }
@@ -67,11 +64,11 @@ namespace AnkiSharp.Models
         public T ToObject<T>(T obj = null) where T : class, new()
         {
             T result = obj ?? new T();
-            PropertyInfo propertyInfo;
 
             foreach (var pair in _dictionary)
             {
-                    propertyInfo = result.GetType().GetProperty(pair.Key);
+                var propertyInfo = result.GetType().GetProperty(pair.Key);
+                if (propertyInfo != null)
                     propertyInfo.SetValue(result, Convert.ChangeType(pair.Value, propertyInfo.PropertyType), null);
             }
 

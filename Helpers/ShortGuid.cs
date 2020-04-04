@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AnkiSharp.Helpers
 {
@@ -24,8 +20,8 @@ namespace AnkiSharp.Helpers
 
         #region Fields
 
-        Guid _guid;
-        string _value;
+        private Guid _guid;
+        private string _value;
 
         #endregion
 
@@ -61,14 +57,12 @@ namespace AnkiSharp.Helpers
         /// </summary>
         public Guid Guid
         {
-            get { return _guid; }
+            get => _guid;
             set
             {
-                if (value != _guid)
-                {
-                    _guid = value;
-                    _value = Encode(value);
-                }
+                if (value == _guid) return;
+                _guid = value;
+                _value = Encode(value);
             }
         }
 
@@ -77,14 +71,12 @@ namespace AnkiSharp.Helpers
         /// </summary>
         public string Value
         {
-            get { return _value; }
+            get => _value;
             set
             {
-                if (value != _value)
-                {
-                    _value = value;
-                    _guid = Decode(value);
-                }
+                if (value == _value) return;
+                _value = value;
+                _guid = Decode(value);
             }
         }
 
@@ -113,13 +105,15 @@ namespace AnkiSharp.Helpers
         /// <returns></returns>
         public override bool Equals(object obj)
         {
-            if (obj is ShortGuid)
-                return _guid.Equals(((ShortGuid)obj)._guid);
-            if (obj is Guid)
-                return _guid.Equals((Guid)obj);
-            if (obj is string)
-                return _guid.Equals(((ShortGuid)obj)._guid);
-            return false;
+            switch (obj)
+            {
+                case ShortGuid shortGuid:
+                    return _guid.Equals(shortGuid._guid);
+                case Guid guid:
+                    return _guid.Equals(guid);
+                default:
+                    return obj is string && _guid.Equals(((ShortGuid)obj)._guid);
+            }
         }
 
         #endregion
@@ -210,7 +204,6 @@ namespace AnkiSharp.Helpers
         /// <returns></returns>
         public static bool operator ==(ShortGuid x, ShortGuid y)
         {
-            if ((object)x == null) return (object)y == null;
             return x._guid == y._guid;
         }
 

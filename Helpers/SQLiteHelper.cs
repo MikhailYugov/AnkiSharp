@@ -6,12 +6,13 @@ namespace AnkiSharp.Helpers
     internal class SQLiteHelper
     {
     
-        internal static void ExecuteSQLiteCommand(SQLiteConnection conn, string toExecute)
+        internal static void ExecuteSQLiteCommand(SQLiteConnection conn, string toExecute, SQLiteParameter[] sqlParameters)
         {
             try
             {
                 using (SQLiteCommand command = new SQLiteCommand(toExecute, conn))
                 {
+                    command.Parameters.AddRange(sqlParameters);
                     command.ExecuteNonQuery();
                 }
             }

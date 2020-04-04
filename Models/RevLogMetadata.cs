@@ -2,14 +2,14 @@
 {
     internal class RevLogMetadata
     {
-        public double id { get; set; }
-        public double cid { get; set; }
-        public double usn { get; set; }
-        public int ease { get; set; }
-        public double ivl { get; set; }
-        public double lastIvl { get; set; }
-        public double factor { get; set; }
-        public double time { get; set; }
-        public int type { get; set; }
+        public double Id { get; set; }
+        public double Cid { get; set; }
+        public double Usn { get; set; }
+        public int Ease { get; set; }
+        public double Ivl { get; set; }
+        public double LastIvl { get; set; }
+        public double Factor { get; set; }
+        public double Time { get; set; }
+        public int Type { get; set; }
     }
 }
