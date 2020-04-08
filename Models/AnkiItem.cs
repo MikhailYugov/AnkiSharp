@@ -1,4 +1,5 @@
-﻿using AnkiSharp.Models;
+﻿using System;
+using AnkiSharp.Models;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
@@ -16,6 +17,7 @@ namespace AnkiSharp
         public object this[string elem] => _dictionary[elem];
 
         public int Count => _dictionary.Count;
+        public Dictionary<string, object>.KeyCollection Keys => _dictionary.Keys;
 
         public string Mid { get; set; } = "";
         #endregion
@@ -43,6 +45,13 @@ namespace AnkiSharp
             _dictionary[binder.Name.ToLower()] = value;
             
             return true;
+        }
+        public void Set(string key, string value)
+        {
+            if (_dictionary.ContainsKey(key))
+            {
+                _dictionary[key] = value;
+            }
         }
 
         public static bool operator ==(AnkiItem first, AnkiItem second)

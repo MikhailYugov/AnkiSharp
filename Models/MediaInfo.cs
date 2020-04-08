@@ -5,9 +5,13 @@ namespace AnkiSharp
 {
     public class MediaInfo
     {
-        public CultureInfo CultureInfo;
-        public string Field;
-        public string Extension = ".wav";
-        public SpeechAudioFormatInfo AudioFormat = new SpeechAudioFormatInfo(8000, AudioBitsPerSample.Sixteen, AudioChannel.Mono);
+        public CultureInfo FrontCultureInfo = null;
+        public string FrontTextField = null;
+        public string FrontAudioField = null;
+        public CultureInfo BackCultureInfo = null;
+        public string BackTextField = null;
+        public string BackAudioField = null;
+        public string Extension = ".mp3";
+        public int Bitrate = 96000;
     }
 }

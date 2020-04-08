@@ -13,25 +13,33 @@ namespace AnkiSharp.Helpers
     {
         internal static Dictionary<string, string> extensionTag = new Dictionary<string, string>()
         {
-            { ".wav", "[sound:{0}]" },
+            { ".mp3", "[sound:{0}]" },
             { ".gif", "<img src=\"{0}\"/>" }
         };
 
         internal static string ConcatFields(FieldList flds, AnkiItem item, string separator, MediaInfo info)
         {
-            var matchedFields = (from t in flds
-                                 //where item[t.Name] as string != ""
-                                 select item[t.Name]).ToArray();
+            var matchedFields = (from t in flds select item[t.Name]).ToArray();
 
             if (info == null) return String.Join(separator, matchedFields);
-            int indexOfField = Array.IndexOf(matchedFields, item[info.Field]);
 
-            if (indexOfField != -1)
-                matchedFields[indexOfField] += String.Format(extensionTag[info.Extension], matchedFields[0] + info.Extension);
+            if (info.FrontTextField != null)
+            {
+                int indexOfFrontAudioField = Array.IndexOf(item.Keys.ToArray(), info.FrontAudioField);
+                if (indexOfFrontAudioField != -1)
+                    matchedFields[indexOfFrontAudioField] = String.Format(extensionTag[info.Extension], matchedFields[indexOfFrontAudioField]);
+            }
+
+            if (info.BackTextField != null)
+            {
+                int indexOfBackAudioField = Array.IndexOf(item.Keys.ToArray(), info.BackAudioField);
+                if (indexOfBackAudioField != -1)
+                    matchedFields[indexOfBackAudioField] = String.Format(extensionTag[info.Extension], matchedFields[indexOfBackAudioField]);
+            }
 
             return String.Join(separator, matchedFields);
         }
-        
+
         internal static string ReadResource(string path)
         {
             return new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(path)).ReadToEnd();

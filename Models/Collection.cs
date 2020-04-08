@@ -19,18 +19,28 @@ namespace AnkiSharp.Models
         internal SQLiteParameter[] SqlParameters { get; }
         internal string DeckId { get; }
         
-        public Collection(OrderedDictionary infoPerMid, List<AnkiItem> ankiItems, string name)
+        public Collection(OrderedDictionary infoPerMid, List<AnkiItem> ankiItems, string name,
+            string mid = null,
+            string mod = null,
+            string did = null)
         {
-            var mid = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            
+            if (mid == null)
+            {
+                mid = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            }
 
-            var mod = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            if (mod == null)
+            {
+                mod = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            }
+
             var crt = GetDayStart();
             
             var confFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.conf.json");
             var conf = confFileContent.Replace("{MODEL}", mid).Replace("\r\n", "");
-
-            DeckId = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
-
+            DeckId = did ?? DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            
             var modelsFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.models.json").Replace("{MOD}", mod);
 
             var models = new StringBuilder();
