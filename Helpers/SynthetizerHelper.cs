@@ -1,16 +1,13 @@
 ﻿using System.Globalization;
 using System.IO;
-using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
-using NAudio;
-using NAudio.Lame;
 using NAudio.Wave;
 
 namespace AnkiSharp.Helpers
 {
     internal static class SynthetizerHelper
     {
-        internal static void CreateAudio(string path, string text, CultureInfo cultureInfo, int bitrate)
+        public static void CreateAudio(string path, string text, CultureInfo cultureInfo, int bitrate)
         {
             using (SpeechSynthesizer reader = new SpeechSynthesizer())
             {
@@ -26,6 +23,10 @@ namespace AnkiSharp.Helpers
                 reader.Speak(builder);
                 ConvertWavStreamToMp3File(ref ms, path, bitrate);
 
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
                 File.Move(path + ".mp3", path);
             }
         }

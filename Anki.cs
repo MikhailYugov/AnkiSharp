@@ -1,19 +1,22 @@
 ﻿using AnkiSharp.Helpers;
 using AnkiSharp.Models;
+using NAudio.MediaFoundation;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Data.SQLite;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using NAudio.MediaFoundation;
-using Newtonsoft.Json;
+using System.Xml.Linq;
 using Info = System.Tuple<string, string, AnkiSharp.Models.FieldList>;
 
 namespace AnkiSharp
@@ -21,42 +24,25 @@ namespace AnkiSharp
     public class Anki
     {
         private SQLiteConnection _conn;
-
-        private MediaInfo _mediaInfo;
-
         private string _name;
         private Assembly _assembly;
         private string _path;
         private string _collectionFilePath;
-
         private List<AnkiItem> _ankiItems;
         private Queue<CardMetadata> _cardsMetadatas;
         private List<RevLogMetadata> _revLogMetadatas;
+        private OrderedDictionary _infoPerMid;
+        public string ModelId { get; set; }
+        public string UniqueField { get; set; }
+        public MediaInfo MediaInfo { get; set; }
+        public IpaInfo IpaInfo { get; set; }
 
-        public string Mid { get; set; }
-        public string Mod { get; set; }
-        public string Did { get; set; }
-
-        /// <summary>
-        /// Key : string which represent Mid
-        /// Value : Tuple string, string, FieldList which represent repectively the format, the css and the field list
-        /// </summary>
-        OrderedDictionary _infoPerMid;
-
-        /// <summary>
-        /// Creates a Anki object
-        /// </summary>
-        /// <param name="name">Specify the name of apkg file and deck</param>
-        /// <param name="info"></param>
-        /// <param name="path">Where to save your apkg file</param>
-        public Anki(string name, MediaInfo info = null, string path = null)
+        public Anki(string name, string path = null)
         {
             _cardsMetadatas = new Queue<CardMetadata>();
             _revLogMetadatas = new List<RevLogMetadata>();
 
             _assembly = Assembly.GetExecutingAssembly();
-
-            _mediaInfo = info;
 
             _path = path ?? Path.Combine(Path.GetDirectoryName(_assembly.Location) ?? throw new InvalidOperationException(), "tmp");
 
@@ -66,21 +52,13 @@ namespace AnkiSharp
             Init(_path, name);
         }
 
-        /// <summary>
-        /// Create anki object from an Apkg file
-        /// </summary>
-        /// <param name="name">Specify the name of apkg file and deck</param>
-        /// <param name="file">Apkg file</param>
-        /// <param name="info"></param>
-        public Anki(string name, ApkgFile file, MediaInfo info = null)
+        public Anki(string name, ApkgFile file)
         {
             _cardsMetadatas = new Queue<CardMetadata>();
             _revLogMetadatas = new List<RevLogMetadata>();
 
             _assembly = Assembly.GetExecutingAssembly();
             _path = Path.Combine(Path.GetDirectoryName(_assembly.Location) ?? throw new InvalidOperationException(), "tmp");
-
-            _mediaInfo = info;
 
             if (Directory.Exists(_path) == false)
                 Directory.CreateDirectory(_path);
@@ -127,23 +105,19 @@ namespace AnkiSharp
             _infoPerMid["DEFAULT"] = newDefault;
         }
 
-        /// <summary>
-        /// Create a apkg file with all the words
-        /// </summary>
         public void CreateApkgFile(string path)
         {
             CreateDbFile();
 
             CreateMediaFile();
 
+            CreateIpa();
+
             ExecuteSqLiteCommands();
 
             CreateZipFile(path);
         }
 
-        /// <summary>
-        /// Creates an AnkiItem and add it to the Anki object
-        /// </summary>
         public void AddItem(params string[] properties)
         {
             var mid = "";
@@ -170,9 +144,6 @@ namespace AnkiSharp
             _ankiItems.Add(item);
         }
 
-        /// <summary>
-        /// Add AnkiItem to the Anki object
-        /// </summary>
         public void AddItem(AnkiItem item)
         {
             if (item.Mid == "")
@@ -186,9 +157,6 @@ namespace AnkiSharp
             _ankiItems.Add(item);
         }
 
-        /// <summary>
-        /// Tell if the anki object contains an AnkiItem (strict comparison)
-        /// </summary>
         public bool ContainsItem(AnkiItem item)
         {
             int matching = 1 + _ankiItems.Count(ankiItem => item == ankiItem);
@@ -196,9 +164,6 @@ namespace AnkiSharp
             return matching == item.Count;
         }
 
-        /// <summary>
-        /// Tell if the anki object contains an AnkiItem (user defined comparison)
-        /// </summary>
         public bool ContainsItem(Func<AnkiItem, bool> comparison)
         {
             return _ankiItems.Any(ankiItem => comparison(ankiItem));
@@ -289,7 +254,7 @@ namespace AnkiSharp
 
         private string CreateCol()
         {
-            Collection collection = new Collection(_infoPerMid, _ankiItems, _name, Mid, Mod, Did);
+            Collection collection = new Collection(_infoPerMid, _ankiItems, _name, ModelId);
 
             SQLiteHelper.ExecuteSQLiteCommand(_conn, collection.SqlQuery, collection.SqlParameters);
 
@@ -301,7 +266,7 @@ namespace AnkiSharp
             Anki currentAnki = anki ?? (this);
             foreach (var ankiItem in currentAnki._ankiItems)
             {
-                Note note = new Note(currentAnki._infoPerMid, currentAnki._mediaInfo, ankiItem);
+                Note note = new Note(currentAnki._infoPerMid, ankiItem, UniqueField);
 
                 SQLiteHelper.ExecuteSQLiteCommand(currentAnki._conn, note.SqlQuery, note.SqlParameters);
 
@@ -376,6 +341,7 @@ namespace AnkiSharp
         private void CreateMediaFile()
         {
             string mediaFilePath = Path.Combine(_path, "media");
+
             MediaFoundationApi.Startup();
             if (File.Exists(mediaFilePath))
                 File.Delete(mediaFilePath);
@@ -384,39 +350,21 @@ namespace AnkiSharp
             {
                 int j = 0;
                 var obj = new JObject();
-                if (_mediaInfo != null)
+                if (MediaInfo != null)
                 {
-                    foreach (var item in _ankiItems.Where(item => _mediaInfo.Extension == ".mp3"))
+                    foreach (var item in _ankiItems.Where(item => MediaInfo.Extension == ".mp3"))
                     {
-                        if (_mediaInfo.FrontTextField != null && _mediaInfo.FrontAudioField != null && _mediaInfo.FrontCultureInfo != null)
+                        var fileNameFront = CreateAudio(j, item, "F");
+                        if (fileNameFront != String.Empty)
                         {
-                            var frontJ = j;
+                            obj[j.ToString()] = fileNameFront;
                             j++;
-                            SynthetizerHelper.CreateAudio(
-                                Path.Combine(_path, frontJ.ToString()),
-                                item[_mediaInfo.FrontTextField].ToString(),
-                                _mediaInfo.FrontCultureInfo,
-                                _mediaInfo.Bitrate);
-                            
-                            //var fileNameFront = frontJ + _mediaInfo.Extension;
-                            var fileNameFront = "DeckHelper" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + _mediaInfo.Extension;
-                            obj[frontJ.ToString()] = fileNameFront;
-                            item.Set(_mediaInfo.FrontAudioField, fileNameFront);
                         }
-                        if (_mediaInfo.BackTextField != null && _mediaInfo.FrontAudioField != null && _mediaInfo.BackCultureInfo != null)
+                        var fileNameBack = CreateAudio(j, item, "B");
+                        if (fileNameBack != String.Empty)
                         {
-                            var backJ = j;
+                            obj[j.ToString()] = fileNameBack;
                             j++;
-                            SynthetizerHelper.CreateAudio(
-                                Path.Combine(_path, backJ.ToString()),
-                                item[_mediaInfo.BackTextField].ToString(),
-                                _mediaInfo.BackCultureInfo,
-                                _mediaInfo.Bitrate);
-
-                            //var fileNameBack = backJ + _mediaInfo.Extension;
-                            var fileNameBack = "DeckHelper" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + _mediaInfo.Extension;
-                            obj[backJ.ToString()] = fileNameBack;
-                            item.Set(_mediaInfo.BackAudioField, fileNameBack);
                         }
                     }
                 }
@@ -425,6 +373,59 @@ namespace AnkiSharp
                 byte[] info = new UTF8Encoding(true).GetBytes(serialized);
                 fs.Write(info, 0, info.Length);
                 fs.Close();
+            }
+        }
+
+        private string CreateAudio(int j, AnkiItem item, string type)
+        {
+            const string audioTemplate = "[sound:{0}]";
+            const string filePrefix = "DeckHelper-";
+
+            string textField = MediaInfo.FrontTextField;
+            string audioField = MediaInfo.FrontAudioField;
+            CultureInfo cultureInfo = MediaInfo.FrontCultureInfo;
+
+            if (type == "B")
+            {
+                textField = MediaInfo.BackTextField;
+                audioField = MediaInfo.BackAudioField;
+                cultureInfo = MediaInfo.BackCultureInfo;
+            }
+
+            if (textField == null || audioField == null || cultureInfo == null) return String.Empty;
+
+            SynthetizerHelper.CreateAudio(Path.Combine(_path, j.ToString()),
+                GeneralHelper.ProcessString(item[textField].ToString()), cultureInfo, MediaInfo.Bitrate);
+
+            var fileName = filePrefix + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + MediaInfo.Extension;
+
+            int indexOfAudioField = Array.IndexOf(item.Keys.ToArray(), audioField);
+            if (indexOfAudioField != -1)
+            {
+                item.Set(audioField, String.Format(audioTemplate, fileName));
+            }
+
+            return fileName;
+        }
+
+        private void CreateIpa()
+        {
+            if (IpaInfo == null) return;
+
+            foreach (var item in _ankiItems)
+            {
+
+                var ipaFront = IpaHelper.CreateIpa(
+                    GeneralHelper.ProcessString(item[IpaInfo.FrontTextField].ToString()),
+                    IpaInfo.FrontCultureInfo
+                    );
+                item.Set(IpaInfo.FrontIpaField, ipaFront);
+                
+                var ipaBack = IpaHelper.CreateIpa(
+                    GeneralHelper.ProcessString(item[IpaInfo.BackTextField].ToString()),
+                    IpaInfo.BackCultureInfo
+                    );
+                item.Set(IpaInfo.BackIpaField, ipaBack);
             }
         }
 

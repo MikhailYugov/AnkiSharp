@@ -1,38 +1,27 @@
-﻿using System;
-using AnkiSharp.Models;
+﻿using AnkiSharp.Models;
 using System.Collections.Generic;
 using System.Dynamic;
-using System.Linq;
 
 namespace AnkiSharp
 {
     public class AnkiItem : DynamicObject
     {
-        #region FIELDS
+        private Dictionary<string, object> _dictionary = new Dictionary<string, object>();
 
-        Dictionary<string, object> _dictionary = new Dictionary<string, object>();
-        #endregion
-
-        #region PROPERTIES
         public object this[string elem] => _dictionary[elem];
-
         public int Count => _dictionary.Count;
         public Dictionary<string, object>.KeyCollection Keys => _dictionary.Keys;
 
         public string Mid { get; set; } = "";
-        #endregion
 
-        #region CTOR
         public AnkiItem(FieldList fields, params string[] properties)
         {
             for (int i = 0; i < properties.Length; ++i)
             {
-                _dictionary[fields[i].Name] = properties[i].Replace("'", "’");
+                _dictionary[fields[i].Name] = properties[i];
             }
         }
-        #endregion
 
-        #region FUNCTIONS
         public override bool TryGetMember(GetMemberBinder binder, out object result)
         {
             string name = binder.Name.ToLower();
@@ -69,6 +58,5 @@ namespace AnkiSharp
         {
             return !(first == second);
         }
-        #endregion
     }
 }

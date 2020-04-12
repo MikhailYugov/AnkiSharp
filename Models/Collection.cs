@@ -14,32 +14,25 @@ namespace AnkiSharp.Models
     internal class Collection
     {
         private const long Id = 1;
-
         internal string SqlQuery { get; }
         internal SQLiteParameter[] SqlParameters { get; }
         internal string DeckId { get; }
         
-        public Collection(OrderedDictionary infoPerMid, List<AnkiItem> ankiItems, string name,
-            string mid = null,
-            string mod = null,
-            string did = null)
+        public Collection(OrderedDictionary infoPerMid, List<AnkiItem> ankiItems, string name, string modelId = null)
         {
             
-            if (mid == null)
+            if (modelId == null)
             {
-                mid = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+                modelId = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
             }
 
-            if (mod == null)
-            {
-                mod = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
-            }
+            var mod = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
 
             var crt = GetDayStart();
             
             var confFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.conf.json");
-            var conf = confFileContent.Replace("{MODEL}", mid).Replace("\r\n", "");
-            DeckId = did ?? DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();
+            var conf = confFileContent.Replace("{MODEL}", modelId).Replace("\r\n", "");
+            DeckId = name.GetHashCode().ToString();
             
             var modelsFileContent = GeneralHelper.ReadResource("AnkiSharp.AnkiData.models.json").Replace("{MOD}", mod);
 
@@ -61,9 +54,9 @@ namespace AnkiSharp.Models
                 {
                     var newEntry = infoPerMid["DEFAULT"];
 
-                    infoPerMid.Add(mid, newEntry);
-                    ankiItems.ForEach(x => x.Mid = x.Mid == "DEFAULT" ? mid : x.Mid);
-                    models.Append(modelsFileContent.Replace("{MID}", mid));
+                    infoPerMid.Add(modelId, newEntry);
+                    ankiItems.ForEach(x => x.Mid = x.Mid == "DEFAULT" ? modelId : x.Mid);
+                    models.Append(modelsFileContent.Replace("{MID}", modelId));
                 }
                 else
                     models.Append(modelsFileContent.Replace("{MID}", key));
